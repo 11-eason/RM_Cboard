@@ -13,6 +13,7 @@ sp::Mahony imu(1e-3f);
 extern "C" void imu_task()
 {
     bmi088.init();
+    uint32_t print_div = 0;
 
     for (;;)
     {
@@ -21,12 +22,15 @@ extern "C" void imu_task()
 
         g_data.yaw = imu.yaw;
 
-        float yaw_deg = imu.yaw * 57.29578f;
-        float pitch_deg = imu.pitch * 57.29578f;
-        float roll_deg = imu.roll * 57.29578f;
+        if (++print_div >= 10)
+        {
+            print_div = 0;
+            float yaw_deg = imu.yaw * 57.29578f;
+            float pitch_deg = imu.pitch * 57.29578f;
+            float roll_deg = imu.roll * 57.29578f;
+            printf("Yaw: %.2f, Pitch: %.2f, Roll: %.2f\r\n", yaw_deg, pitch_deg, roll_deg);
+        }
 
-        printf("Yaw: %.2f, Pitch: %.2f, Roll: %.2f\r\n", yaw_deg, pitch_deg, roll_deg);
-
-        osDelay(10);
+        osDelay(1);
     }
 }
