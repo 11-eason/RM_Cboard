@@ -1,5 +1,6 @@
 #include "cmsis_os.h"
 #include "io/dbus/dbus.hpp"
+#include "shared_data.hpp"
 
 // C°å£ºUSART3 ½Ó DBUS
 sp::DBus remote(&huart3);
@@ -22,6 +23,10 @@ extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t S
     if (huart == &huart3)
     {
         remote.update(Size, stamp_ms);
+
+        g_data.sw_r = static_cast<uint8_t>(remote.sw_r);
+        g_data.sw_l = static_cast<uint8_t>(remote.sw_l);
+
         remote.request();
     }
 }

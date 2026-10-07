@@ -1,9 +1,11 @@
 #include "cmsis_os.h"
 #include "io/can/can.hpp"
 #include "motor/rm_motor/rm_motor.hpp"
+#include "shared_data.hpp"
 
 sp::CAN can1(&hcan1);
-sp::RM_Motor motor6020(1, sp::RM_Motors::GM6020); // 电机ID=1, 电流控制模式
+sp::RM_Motor motor_a(1, sp::RM_Motors::GM6020); // A电机 ID=1
+sp::RM_Motor motor_b(2, sp::RM_Motors::GM6020); // B电机 ID=2
 
 extern "C" void can_task()
 {
@@ -12,10 +14,16 @@ extern "C" void can_task()
 
     for (;;)
     {
-        motor6020.cmd(0.0f); // 先发0电流，验证通信正常
+        // 写角度到共享数据
+        g_data.angle_a = motor_a.angle;
+        g_data.angle_b = motor_b.angle;
 
-        motor6020.write(can1.tx_data);
-        can1.send(motor6020.tx_id);
+        // 暂时发0力矩，验证双电机通信
+        motor_a.cmd(0.0f);
+        motor_b.cmd(0.0f);
+
+        motor_a.write(can1.tx_data);
+        can1.send(motor_a.tx_id);
 
         osDelay(1);
     }
@@ -31,9 +39,13 @@ extern "C" void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
         {
             can1.recv();
 
-            if (can1.rx_id == motor6020.rx_id)
+            if (can1.rx_id == motor_a.rx_id)
             {
-                motor6020.read(can1.rx_data, stamp_ms);
+                motor_a.read(can1.rx_data, stamp_ms);
+            }
+            else if (can1.rx_id == motor_b.rx_id)
+            {
+                motor_b.read(can1.rx_data, stamp_ms);
             }
         }
     }

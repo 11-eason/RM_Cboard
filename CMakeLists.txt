@@ -57,6 +57,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     applications/can_task.cpp
     sp_middleware/io/can/can.cpp
     sp_middleware/motor/rm_motor/rm_motor.cpp
+    applications/shared_data.cpp
 )
 
 # Add include paths

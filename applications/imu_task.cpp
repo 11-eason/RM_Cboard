@@ -3,6 +3,7 @@
 #include "cmsis_os.h"
 #include "io/bmi088/bmi088.hpp"
 #include "tools/mahony/mahony.hpp"
+#include "shared_data.hpp"
 
 const float r_ab[3][3] = {{0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
 
@@ -17,6 +18,8 @@ extern "C" void imu_task()
     {
         bmi088.update();
         imu.update(bmi088.acc, bmi088.gyro);
+
+        g_data.yaw = imu.yaw;
 
         float yaw_deg = imu.yaw * 57.29578f;
         float pitch_deg = imu.pitch * 57.29578f;
