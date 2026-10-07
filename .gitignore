@@ -1,0 +1,16 @@
+# 编译输出
+build/
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/c_cpp_properties.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# CubeMX
+*.ioc.bak
