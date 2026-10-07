@@ -28,9 +28,8 @@ extern "C" void imu_task()
             float yaw_deg = imu.yaw * 57.29578f;
             float pitch_deg = imu.pitch * 57.29578f;
             float roll_deg = imu.roll * 57.29578f;
-            printf("Yaw: %.2f, Pitch: %.2f, Roll: %.2f\r\n", yaw_deg, pitch_deg, roll_deg);
-        }
+            printf("%.2f %.2f %.2f\r\n", yaw_deg, pitch_deg, roll_deg);
 
-        osDelay(1);
+            osDelay(1);
+        }
     }
-}
