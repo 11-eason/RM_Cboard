@@ -248,11 +248,8 @@ void StartRcTask(void *argument)
 void StartMotorTask(void *argument)
 {
   /* USER CODE BEGIN StartMotorTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+  extern void can_task(void);
+  can_task();
   /* USER CODE END StartMotorTask */
 }
 

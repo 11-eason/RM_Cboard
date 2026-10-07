@@ -54,6 +54,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     sp_middleware/tools/mahony/mahony.cpp
     applications/uart_task.cpp
     sp_middleware/io/dbus/dbus.cpp
+    applications/can_task.cpp
+    sp_middleware/io/can/can.cpp
+    sp_middleware/motor/rm_motor/rm_motor.cpp
 )
 
 # Add include paths
