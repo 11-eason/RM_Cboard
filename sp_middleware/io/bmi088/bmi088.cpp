@@ -79,10 +79,11 @@ BMI088::BMI088(
 
 void BMI088::init()
 {
-  while (acc_init() != BMI088_NO_ERROR);
-  while (gyro_init() != BMI088_NO_ERROR);
+  uint32_t acc_retry = 0;
+  uint32_t gyro_retry = 0;
+  while (acc_init() != BMI088_NO_ERROR && ++acc_retry < 100);
+  while (gyro_init() != BMI088_NO_ERROR && ++gyro_retry < 100);
 }
-
 void BMI088::update()
 {
   acc_update();

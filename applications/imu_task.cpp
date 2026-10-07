@@ -4,6 +4,7 @@
 #include "io/bmi088/bmi088.hpp"
 #include "shared_data.hpp"
 #include "tools/mahony/mahony.hpp"
+#include "usart.h"
 
 const float r_ab[3][3] = {{0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
 
@@ -12,25 +13,33 @@ sp::Mahony imu(1e-3f);
 
 extern "C" void imu_task()
 {
-    bmi088.init();
-    uint32_t print_div = 0;
+  char buf[160];
+  int len;
 
-    for (;;)
-    {
-        bmi088.update();
-        imu.update(bmi088.acc, bmi088.gyro);
+  uint8_t msg1[] = "=== IMU START ===\r\n";
+  HAL_UART_Transmit(&huart1, msg1, sizeof(msg1) - 1, 1000);
 
-        g_data.yaw = imu.yaw;
+  bmi088.init();
 
-        if (++print_div >= 10)
-        {
-            print_div = 0;
-            float yaw_deg = imu.yaw * 57.29578f;
-            float pitch_deg = imu.pitch * 57.29578f;
-            float roll_deg = imu.roll * 57.29578f;
-            printf("%.2f %.2f %.2f\r\n", yaw_deg, pitch_deg, roll_deg);
-        }
+  uint8_t msg2[] = "=== INIT OK ===\r\n";
+  HAL_UART_Transmit(&huart1, msg2, sizeof(msg2) - 1, 1000);
 
-        osDelay(1);
+  uint32_t print_div = 0;
+
+  for (;;) {
+    bmi088.update();
+    imu.update(bmi088.acc, bmi088.gyro);
+    g_data.yaw = imu.yaw;
+
+    if (++print_div >= 10) {
+      print_div = 0;
+      float yaw_deg = imu.yaw * 57.29578f;
+      float pitch_deg = imu.pitch * 57.29578f;
+      float roll_deg = imu.roll * 57.29578f;
+      len = snprintf(buf, sizeof(buf), "%.2f %.2f %.2f\r\n", yaw_deg, pitch_deg, roll_deg);
+      HAL_UART_Transmit(&huart1, (uint8_t *)buf, len, 100);
     }
+
+    osDelay(1);
+  }
 }

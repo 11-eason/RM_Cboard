@@ -5,20 +5,18 @@ sp::LED led(&htim5);
 
 extern "C" void led_task()
 {
-    led.start();
+  led.start();
 
-    while (true)
-    {
-        for (uint8_t g = 0; g < 10; g++)
-        {
-            led.set(0, g * 0.01f, 0);
-            osDelay(100);
-        }
-
-        for (uint8_t g = 10; g > 0; g--)
-        {
-            led.set(0, g * 0.01f, 0);
-            osDelay(100);
-        }
+  while (true) {
+    for (;;) {
+      led.set(1.0f, 0, 0);  // ºì
+      osDelay(200);
+      led.set(0, 1.0f, 0);  // ÂÌ
+      osDelay(200);
+      led.set(0, 0, 1.0f);  // À¶
+      osDelay(200);
+      led.set(0, 0, 0);  // Ãð
+      osDelay(200);
     }
+  }
 }
