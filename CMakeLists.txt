@@ -49,6 +49,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     sp_middleware/io/led/led.cpp
     applications/buzzer_task.cpp
     sp_middleware/io/buzzer/buzzer.cpp
+    applications/imu_task.cpp
+    sp_middleware/io/bmi088/bmi088.cpp
+    sp_middleware/tools/mahony/mahony.cpp
 )
 
 # Add include paths

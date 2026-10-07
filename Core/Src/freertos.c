@@ -218,11 +218,8 @@ void StartLedTask(void *argument)
 void StartImuTask(void *argument)
 {
   /* USER CODE BEGIN StartImuTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+  extern void imu_task(void);
+  imu_task();
   /* USER CODE END StartImuTask */
 }
 
