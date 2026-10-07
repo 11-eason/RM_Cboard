@@ -52,6 +52,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     applications/imu_task.cpp
     sp_middleware/io/bmi088/bmi088.cpp
     sp_middleware/tools/mahony/mahony.cpp
+    applications/uart_task.cpp
+    sp_middleware/io/dbus/dbus.cpp
 )
 
 # Add include paths

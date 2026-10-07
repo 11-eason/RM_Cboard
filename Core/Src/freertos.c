@@ -233,11 +233,8 @@ void StartImuTask(void *argument)
 void StartRcTask(void *argument)
 {
   /* USER CODE BEGIN StartRcTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+  extern void uart_task(void);
+  uart_task();
   /* USER CODE END StartRcTask */
 }
 
