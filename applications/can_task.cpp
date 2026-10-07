@@ -16,55 +16,55 @@ sp::PID pid_b(1e-3f, 20.0f, 0.0f, 0.5f, 2.0f, 0.0f, 1.0f, true, false);
 
 namespace
 {
-    // 联动状态（增量式）
-    bool first_run = true;
     float last_yaw = 0.0f;
     float last_motor_a = 0.0f;
     float last_motor_b = 0.0f;
     float target_a = 0.0f;
     float target_b = 0.0f;
+    uint8_t last_sw_r = 0xFF;
 
-    constexpr float MANUAL_THRESHOLD = 0.05f; // 手动转动检测阈值，单位 rad
+    constexpr float MANUAL_THRESHOLD = 0.001f; // 单位 rad/ms，约 57°/s
 
-    // 右拨杆：0=DOWN, 1=MID, 2=UP
-    // 左拨杆：0=DOWN, 1=MID, 2=UP
     void sync_update()
     {
         float yaw = g_data.yaw;
         uint8_t sw_r = g_data.sw_r;
         uint8_t sw_l = g_data.sw_l;
 
+        bool mode_changed = (sw_r != last_sw_r);
+        last_sw_r = sw_r;
+
         // 失能模式
         if (sw_r == 0)
         {
             motor_a.cmd(0.0f);
             motor_b.cmd(0.0f);
-            first_run = true;
             return;
         }
 
-        // 复位模式：两电机 R 标对齐 C 板 R 标
+        // 复位模式：两电机R标对齐C板R标
         if (sw_r == 2)
         {
             target_a = yaw;
             target_b = yaw;
-            first_run = true;
-        }
-
-        // 首次运行或刚切换模式时初始化
-        if (first_run)
-        {
             last_yaw = yaw;
             last_motor_a = motor_a.angle;
             last_motor_b = motor_b.angle;
-            target_a = motor_a.angle;
-            target_b = motor_b.angle;
-            first_run = false;
         }
 
-        // 联动模式（sw_r == 1）
+        // 中档：姿态联动模式
         if (sw_r == 1)
         {
+            // 从其他模式切进来时，从当前位置开始追踪
+            if (mode_changed)
+            {
+                last_yaw = yaw;
+                last_motor_a = motor_a.angle;
+                last_motor_b = motor_b.angle;
+                target_a = motor_a.angle;
+                target_b = motor_b.angle;
+            }
+
             float k_b = (sw_l == 0) ? 0.5f : (sw_l == 1) ? -1.0f
                                                          : 3.0f;
 
@@ -72,26 +72,22 @@ namespace
             float delta_motor_a = motor_a.angle - last_motor_a;
             float delta_motor_b = motor_b.angle - last_motor_b;
 
-            // C 板预期带来的电机变化
-            float expected_a = delta_yaw;
-            float expected_b = delta_yaw * k_b;
+            // 手动转动量 = 电机实际变化 - C板联动预期
+            float manual_a = delta_motor_a - delta_yaw;
+            float manual_b = delta_motor_b - delta_yaw * k_b;
 
-            // 手动转动量 = 实际变化 - 预期变化
-            float manual_a = delta_motor_a - expected_a;
-            float manual_b = delta_motor_b - expected_b;
-
-            // 基础目标增量：C 板转动带来的联动
+            // C板联动
             target_a += delta_yaw;
             target_b += delta_yaw * k_b;
 
-            // 手动转 A → A 目标跟实际，B 按比例跟随
+            // 手动转A：A跟随手，B按比例跟
             if (fabsf(manual_a) > MANUAL_THRESHOLD)
             {
                 target_a += manual_a;
                 target_b += manual_a * k_b;
             }
 
-            // 手动转 B → B 目标跟实际，A 按比例跟随
+            // 手动转B：B跟随手，A按比例跟
             if (fabsf(manual_b) > MANUAL_THRESHOLD)
             {
                 target_b += manual_b;
@@ -103,7 +99,6 @@ namespace
             last_motor_b = motor_b.angle;
         }
 
-        // 位置环 PID
         pid_a.calc(target_a, motor_a.angle);
         pid_b.calc(target_b, motor_b.angle);
 
