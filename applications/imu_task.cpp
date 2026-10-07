@@ -2,8 +2,8 @@
 
 #include "cmsis_os.h"
 #include "io/bmi088/bmi088.hpp"
-#include "tools/mahony/mahony.hpp"
 #include "shared_data.hpp"
+#include "tools/mahony/mahony.hpp"
 
 const float r_ab[3][3] = {{0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
 
@@ -29,7 +29,8 @@ extern "C" void imu_task()
             float pitch_deg = imu.pitch * 57.29578f;
             float roll_deg = imu.roll * 57.29578f;
             printf("%.2f %.2f %.2f\r\n", yaw_deg, pitch_deg, roll_deg);
-
-            osDelay(1);
         }
+
+        osDelay(1);
     }
+}
