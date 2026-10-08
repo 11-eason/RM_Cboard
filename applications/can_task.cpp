@@ -10,10 +10,8 @@ sp::CAN can1(&hcan1);
 sp::RM_Motor motor_a(1, sp::RM_Motors::GM6020);
 sp::RM_Motor motor_b(2, sp::RM_Motors::GM6020);
 
-// kp 降到 3，max_out 降到 0.8 N·m（GM6020 持续堵转 0.86 N·m）
 sp::PID pid_a(1e-3f, 3.0f, 0.0f, 0.0f, 0.8f, 0.0f, 1.0f, false, false);
 sp::PID pid_b(1e-3f, 3.0f, 0.0f, 0.0f, 0.8f, 0.0f, 1.0f, false, false);
-
 namespace
 {
 float yaw_accum = 0.0f;  // 累积的 yaw（处理回绕）
