@@ -17,6 +17,7 @@ namespace
 {
 constexpr float RESET_OFFSET = -1.5707963f;
 float yaw_filtered = 0.0f;
+float target_b_filtered = 0.0f;
 float reset_offset_a = 0.0f;
 float reset_offset_b = 0.0f;
 float yaw_accum = 0.0f;  // 累积的 yaw（处理回绕）
@@ -94,8 +95,10 @@ void sync_update()
   // === 中档：姿态联动 ===
   if (mode_changed) {
     yaw_ref = yaw_accum;
+    yaw_filtered = yaw_accum;  // 避免滤波值从 0 慢慢爬
     motor_a_ref = motor_a.angle;
     motor_b_ref = motor_b.angle;
+    target_b_filtered = motor_b.angle;  // 初始化 B 目标滤波值
     last_motor_a = motor_a.angle;
     last_motor_b = motor_b.angle;
     yaw_move_ms = now_ms;
@@ -112,11 +115,16 @@ void sync_update()
   bool yaw_settled = (now_ms - yaw_move_ms) > YAW_SETTLE_MS;
 
   if (yaw_settled) {
-    if (fabsf(delta_a) > MANUAL_THRESHOLD && fabsf(delta_b) < MANUAL_THRESHOLD) {
+    float threshold_b = (k_b > 2.5f) ? MANUAL_THRESHOLD * 9.0f : MANUAL_THRESHOLD;
+
+    bool a_moving = fabsf(delta_a) > MANUAL_THRESHOLD;
+    bool b_moving = fabsf(delta_b) > threshold_b;
+
+    if (a_moving && !b_moving) {
       motor_a_ref += delta_a;
       motor_b_ref += delta_a * k_b;
     }
-    else if (fabsf(delta_b) > MANUAL_THRESHOLD && fabsf(delta_a) < MANUAL_THRESHOLD) {
+    else if (b_moving && !a_moving) {
       motor_b_ref += delta_b;
       motor_a_ref += delta_b / k_b;
     }
@@ -125,22 +133,13 @@ void sync_update()
   last_motor_a = motor_a.angle;
   last_motor_b = motor_b.angle;
 
-  // === 基于绝对参考计算目标（用 yaw_accum，无回绕）===
   float target_a = motor_a_ref + (yaw_filtered - yaw_ref);
-  float target_b = motor_b_ref + (yaw_filtered - yaw_ref) * k_b;
+  float target_b_raw = motor_b_ref + (yaw_filtered - yaw_ref) * k_b;
 
-  if (k_b > 2.5f) {
-    static float last_target_b = 0.0f;
-    if (fabsf(target_b - last_target_b) < 0.005f) {
-      target_b = last_target_b;
-    }
-    else {
-      last_target_b = target_b;
-    }
-  }
+  target_b_filtered = 0.9f * target_b_filtered + 0.1f * target_b_raw;
 
   pid_a.calc(target_a, motor_a.angle);
-  pid_b.calc(target_b, motor_b.angle);
+  pid_b.calc(target_b_filtered, motor_b.angle);
 
   motor_a.cmd(pid_a.out);
   motor_b.cmd(pid_b.out);
