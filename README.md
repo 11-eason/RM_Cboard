@@ -1,0 +1,8 @@
+目前版本能够支持三轴Serial Plot输出，其中红色转线单独提出在上，其余倾斜角度线在下方
+版本迭代根据介绍有说明，目前经过迭代：
+imu已实现版本
+四个基本项目的完成（imu打印未使用sp_middleware）
+电机联动各版本及版本迭代（均未使用sp_middleware）
+最终版本（使用sp_middleware）
+代码部分借助deepseek
+STM32CubeMX的基础代码生成和大部分sp_middleware的使用为自行完成
