@@ -12,8 +12,13 @@ sp::RM_Motor motor_b(2, sp::RM_Motors::GM6020);
 
 sp::PID pid_a(1e-3f, 3.0f, 0.0f, 0.0f, 0.8f, 0.0f, 1.0f, false, false);
 sp::PID pid_b(1e-3f, 3.0f, 0.0f, 0.0f, 0.8f, 0.0f, 1.0f, false, false);
+
 namespace
 {
+constexpr float RESET_OFFSET = -1.5707963f;
+float yaw_filtered = 0.0f;
+float reset_offset_a = 0.0f;
+float reset_offset_b = 0.0f;
 float yaw_accum = 0.0f;  // 累积的 yaw（处理回绕）
 float yaw_ref = 0.0f;    // 联动参考点
 float motor_a_ref = 0.0f;
@@ -55,6 +60,8 @@ void sync_update()
   if (delta_yaw_raw < -PI_F) delta_yaw_raw += 2 * PI_F;
   yaw_accum += delta_yaw_raw;
   last_yaw = yaw;
+  yaw_filtered = 0.95f * yaw_filtered + 0.05f * yaw_accum;
+  last_yaw = yaw;
 
   // === k_b 计算 ===
   // sw_l: 0=下档 → 0.5, 1=中档 → -1, 2=上档 → 3
@@ -67,15 +74,18 @@ void sync_update()
     motor_b_ref = motor_b.angle - (yaw_accum - yaw_ref) * k_b;
   }
 
-  // === 上档：复位 ===
+  // 上档：复位
   if (sw_r == 2) {
-    yaw_ref = yaw_accum;
-    motor_a_ref = yaw_accum;
-    motor_b_ref = yaw_accum;
+    yaw_ref = yaw_filtered;
+    motor_a_ref = yaw_filtered + RESET_OFFSET;
+    motor_b_ref = yaw_filtered + RESET_OFFSET;
     yaw_move_ms = now_ms;
 
-    pid_a.calc(yaw_accum, motor_a.angle);
-    pid_b.calc(yaw_accum, motor_b.angle);
+    float delta_reset_a = (yaw_filtered + RESET_OFFSET - motor_a.angle) * 0.05f;
+    float delta_reset_b = (yaw_filtered + RESET_OFFSET - motor_b.angle) * 0.05f;
+
+    pid_a.calc(motor_a.angle + delta_reset_a, motor_a.angle);
+    pid_b.calc(motor_b.angle + delta_reset_b, motor_b.angle);
     motor_a.cmd(pid_a.out);
     motor_b.cmd(pid_b.out);
     return;
@@ -116,8 +126,18 @@ void sync_update()
   last_motor_b = motor_b.angle;
 
   // === 基于绝对参考计算目标（用 yaw_accum，无回绕）===
-  float target_a = motor_a_ref + (yaw_accum - yaw_ref);
-  float target_b = motor_b_ref + (yaw_accum - yaw_ref) * k_b;
+  float target_a = motor_a_ref + (yaw_filtered - yaw_ref);
+  float target_b = motor_b_ref + (yaw_filtered - yaw_ref) * k_b;
+
+  if (k_b > 2.5f) {
+    static float last_target_b = 0.0f;
+    if (fabsf(target_b - last_target_b) < 0.005f) {
+      target_b = last_target_b;
+    }
+    else {
+      last_target_b = target_b;
+    }
+  }
 
   pid_a.calc(target_a, motor_a.angle);
   pid_b.calc(target_b, motor_b.angle);
