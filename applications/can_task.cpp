@@ -18,6 +18,7 @@ namespace
 constexpr float RESET_OFFSET = -1.5707963f;
 float yaw_filtered = 0.0f;
 float target_b_filtered = 0.0f;
+float target_b_last = 0.0f;
 float reset_offset_a = 0.0f;
 float reset_offset_b = 0.0f;
 float yaw_accum = 0.0f;  // 累积的 yaw（处理回绕）
@@ -32,8 +33,8 @@ uint8_t last_sw_r = 0xFF;
 uint8_t last_sw_l = 0xFF;
 uint32_t yaw_move_ms = 0;
 
-constexpr float MANUAL_THRESHOLD = 0.01f;      // 手动转动阈值（约 573°/s）
-constexpr float YAW_MOVE_THRESHOLD = 0.0005f;  // C板转动判定（约 28°/s）
+constexpr float MANUAL_THRESHOLD = 0.0005f;  // 手动转动阈值（约 573°/s）
+constexpr float YAW_MOVE_THRESHOLD = 0.0005f;
 constexpr uint32_t YAW_SETTLE_MS = 100;
 constexpr float PI_F = 3.14159265f;
 
@@ -55,14 +56,17 @@ void sync_update()
 
   uint32_t now_ms = osKernelSysTick();
 
-  // === yaw 回绕处理：累积成连续角度 ===
+  // === yaw 回绕处理：只在 C 板转动时累积 ===
   float delta_yaw_raw = yaw - last_yaw;
   if (delta_yaw_raw > PI_F) delta_yaw_raw -= 2 * PI_F;
   if (delta_yaw_raw < -PI_F) delta_yaw_raw += 2 * PI_F;
-  yaw_accum += delta_yaw_raw;
   last_yaw = yaw;
-  yaw_filtered = 0.95f * yaw_filtered + 0.05f * yaw_accum;
-  last_yaw = yaw;
+
+  if (fabsf(delta_yaw_raw) > YAW_MOVE_THRESHOLD) {
+    yaw_accum += delta_yaw_raw;
+    yaw_filtered = 0.95f * yaw_filtered + 0.05f * yaw_accum;
+    yaw_move_ms = now_ms;
+  }
 
   // === k_b 计算 ===
   // sw_l: 0=下档 → 0.5, 1=中档 → -1, 2=上档 → 3
@@ -77,13 +81,15 @@ void sync_update()
 
   // 上档：复位
   if (sw_r == 2) {
-    yaw_ref = yaw_filtered;
-    motor_a_ref = yaw_filtered + RESET_OFFSET;
-    motor_b_ref = yaw_filtered + RESET_OFFSET;
+    // 只在进入复位模式的瞬间设一次目标，之后固定，不受 IMU 噪声影响
+    if (mode_changed) {
+      motor_a_ref = yaw_filtered + RESET_OFFSET;
+      motor_b_ref = yaw_filtered + RESET_OFFSET;
+    }
     yaw_move_ms = now_ms;
 
-    float delta_reset_a = (yaw_filtered + RESET_OFFSET - motor_a.angle) * 0.05f;
-    float delta_reset_b = (yaw_filtered + RESET_OFFSET - motor_b.angle) * 0.05f;
+    float delta_reset_a = (motor_a_ref - motor_a.angle) * 0.05f;
+    float delta_reset_b = (motor_b_ref - motor_b.angle) * 0.05f;
 
     pid_a.calc(motor_a.angle + delta_reset_a, motor_a.angle);
     pid_b.calc(motor_b.angle + delta_reset_b, motor_b.angle);
@@ -91,7 +97,6 @@ void sync_update()
     motor_b.cmd(pid_b.out);
     return;
   }
-
   // === 中档：姿态联动 ===
   if (mode_changed) {
     yaw_ref = yaw_accum;
@@ -107,12 +112,13 @@ void sync_update()
   float delta_a = motor_a.angle - last_motor_a;
   float delta_b = motor_b.angle - last_motor_b;
 
-  if (fabsf(delta_yaw_raw) > YAW_MOVE_THRESHOLD) {
-    yaw_move_ms = now_ms;
-  }
-
   // === 手动转动检测：C板停下超过 100ms ===
   bool yaw_settled = (now_ms - yaw_move_ms) > YAW_SETTLE_MS;
+
+  float tmp_target_a = motor_a_ref + (yaw_filtered - yaw_ref);
+  float tmp_target_b = motor_b_ref + (yaw_filtered - yaw_ref) * k_b;
+  bool a_stable = fabsf(tmp_target_a - motor_a.angle) < 0.1f;
+  bool b_stable = fabsf(tmp_target_b - motor_b.angle) < 0.1f;
 
   if (yaw_settled) {
     float threshold_b = (k_b > 2.5f) ? MANUAL_THRESHOLD * 9.0f : MANUAL_THRESHOLD;
@@ -128,21 +134,54 @@ void sync_update()
       motor_b_ref += delta_b;
       motor_a_ref += delta_b / k_b;
     }
+    else if (!a_moving && !b_moving) {
+    }
   }
-
   last_motor_a = motor_a.angle;
   last_motor_b = motor_b.angle;
 
   float target_a = motor_a_ref + (yaw_filtered - yaw_ref);
   float target_b_raw = motor_b_ref + (yaw_filtered - yaw_ref) * k_b;
 
-  target_b_filtered = 0.9f * target_b_filtered + 0.1f * target_b_raw;
+  // B 目标滤波
+  if (k_b > 2.5f) {
+    // 三档：死区滤波。目标变化小于 0.005 rad（0.29°）时，认为是噪声，不更新
+    constexpr float DEAD_ZONE_B = 0.005f;
+    float delta_target = target_b_raw - target_b_filtered;
+    if (fabsf(delta_target) < DEAD_ZONE_B) {
+      target_b_raw = target_b_filtered;  // 冻结目标
+    }
+    target_b_filtered = 0.9f * target_b_filtered + 0.1f * target_b_raw;
+  }
+  else {
+    target_b_filtered = 0.9f * target_b_filtered + 0.1f * target_b_raw;
+  }
+  target_b_last = target_b_filtered;
+
+  constexpr float MAX_DRIFT = 0.3f;
+
+  if (yaw_settled) {
+    if (fabsf(target_a - motor_a.angle) > MAX_DRIFT) {
+      motor_a_ref = motor_a.angle - (yaw_filtered - yaw_ref);
+      target_a = motor_a.angle;
+    }
+
+    if (fabsf(target_b_filtered - motor_b.angle) > MAX_DRIFT) {
+      motor_b_ref = motor_b.angle - (yaw_filtered - yaw_ref) * k_b;
+      target_b_filtered = motor_b.angle;
+    }
+  }
 
   pid_a.calc(target_a, motor_a.angle);
   pid_b.calc(target_b_filtered, motor_b.angle);
 
   motor_a.cmd(pid_a.out);
-  motor_b.cmd(pid_b.out);
+  if (k_b > 2.5f) {
+    motor_b.cmd(pid_b.out * 0.4f);
+  }
+  else {
+    motor_b.cmd(pid_b.out);
+  }
 }
 }  // namespace
 
